@@ -16,7 +16,7 @@ Unreal_AIHper/                  # ← git clone 到 Plugins/Unreal.AIHper/
 ├── puerts_uehper/               # TS 框架包（dist/ + Cli/ + Framework/ + Services/）
 ├── puerts/                      # submodule: Tencent/puerts@a50fbae
 ├── Unreal_mcp/                  # submodule: ChiR24/Unreal_mcp@v0.5.30
-└── McpAutomationBridge/         # （-WithMCP 时 junction 到 Unreal_mcp/plugins/McpAutomationBridge/）
+└── McpAutomationBridge/         # （可选，手动 junction，见下文"可选 MCP"）
 ```
 
 ## 安装（git clone 模式，保留版本控制和回流能力）
@@ -28,9 +28,6 @@ git clone --recurse-submodules https://github.com/MrBaoquan/Unreal_AIHper.git Pl
 
 # 2. 跑一站式初始化
 ./Plugins/Unreal.AIHper/install.ps1 -ProjectRoot .
-
-# 或带 MCP 编辑器自动化
-./Plugins/Unreal.AIHper/install.ps1 -ProjectRoot . -WithMCP
 ```
 
 `install.ps1` 完成：
@@ -39,9 +36,24 @@ git clone --recurse-submodules https://github.com/MrBaoquan/Unreal_AIHper.git Pl
 3. 创建 `TypeScript/` 源码根目录
 4. `npm install`
 5. `npx puerts_uehper bootstrap`（写 tsconfig.paths / GameApp.ts / Manifests；backend 未编译时优雅降级）
-6. `-WithMCP` 时 junction McpAutomationBridge + 写 .uproject Plugins 数组
-7. 写 `UEHperFrameworkVersion.ini` 版本记录
-8. SVN 工作副本检测 + 提示
+6. 写 `UEHperFrameworkVersion.ini` 版本记录
+7. SVN 工作副本检测 + 提示
+
+## 可选：McpAutomationBridge（编辑器自动化）
+
+需要 MCP 编辑器自动化时，手动 3 步（不内置到 install.ps1，保持安装器精简）：
+
+```powershell
+cd Plugins/Unreal.AIHper
+# 1. junction McpAutomationBridge 到根目录（UE 才能发现插件）
+cmd /c mklink /J McpAutomationBridge Unreal_mcp\plugins\McpAutomationBridge
+
+# 2. 在 .uproject 的 Plugins 数组加入：
+#   { "Name": "McpAutomationBridge", "Enabled": true }
+
+# 3. 启动 UE 编辑器，确认 McpAutomationBridge 插件已加载
+#    MCP server 端点：http://localhost:3000/mcp
+```
 
 ## 持续沉淀（git 原生能力，无需额外工具）
 

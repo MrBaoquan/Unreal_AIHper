@@ -3,33 +3,30 @@
     Unreal_AIHper framework initializer.
     Run AFTER `git clone --recurse-submodules` into <UEProject>/Plugins/Unreal.AIHper/.
 
-    This script does NOT clone or copy sources (the repo IS the plugin directory).
-    It performs one-shot project initialization:
+    One-shot project initialization:
+      - seed package.json / tsconfig.json / TypeScript/ if missing
       - npm install (puerts_uehper via file: dep)
-      - puerts_uehper bootstrap (tsconfig.paths, GameApp.ts, Manifests)
-      - Falls back to seeding package.json/tsconfig.json/TypeScript/ if missing
-      - Optional: -WithMCP adds McpAutomationBridge to .uproject Plugins array
+      - npx puerts_uehper bootstrap (tsconfig.paths, GameApp.ts, Manifests)
+      - strip UTF-8 BOM from .uproject (Node JSON.parse fails on BOM)
+      - write version record
 
     Usage:
-      cd <UEProject>/Plugins/Unreal.AIHper
-      ./install.ps1 -ProjectRoot ../..
-
-    Or from UE project root:
+      cd <UEProjectRoot>
+      git clone --recurse-submodules https://github.com/MrBaoquan/Unreal_AIHper.git Plugins/Unreal.AIHper
       ./Plugins/Unreal.AIHper/install.ps1 -ProjectRoot .
+
+    For MCP editor automation, see README.md "Optional: McpAutomationBridge".
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)] [string] $ProjectRoot,
-    [switch] $WithMCP,
-    [switch] $DryRun
+    [Parameter(Mandatory = $true)] [string] $ProjectRoot
 )
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-# Resolve project root to absolute path
 $ProjectRoot = (Resolve-Path $ProjectRoot).Path
-$FrameworkRoot = $PSScriptRoot  # this script lives in the cloned repo root
+$FrameworkRoot = $PSScriptRoot
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
 function Write-Info($msg) { Write-Host "[Unreal_AIHper] $msg" -ForegroundColor Cyan }
@@ -74,13 +71,13 @@ if (-not $uproject) {
     exit 1
 }
 
-# Strip BOM from .uproject if present (Node JSON.parse fails on BOM; bootstrap reads it)
-if (-not $DryRun) { Remove-Bom $uproject.FullName }
+# Strip BOM from .uproject (Node JSON.parse fails on BOM; bootstrap reads it)
+Remove-Bom $uproject.FullName
 
-# --- 1. seed package.json in ProjectRoot if missing ---
+# --- 1. seed package.json if missing ---
 $pkgPath = Join-Path $ProjectRoot "package.json"
 if (-not (Test-Path $pkgPath)) {
-    Write-Info "Creating package.json (not found in project root)"
+    Write-Info "Creating package.json"
     $projName = Split-Path $ProjectRoot -Leaf
     $pkgSeed = @{
         name = $projName
@@ -103,22 +100,21 @@ if (-not (Test-Path $pkgPath)) {
             frameworkSource = "package"
         }
     }
-    if (-not $DryRun) { Write-JsonFile $pkgPath $pkgSeed }
+    Write-JsonFile $pkgPath $pkgSeed
 } else {
-    # ensure puerts_uehper dep exists
     $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
     if (-not $pkg.dependencies -or -not $pkg.dependencies.'puerts_uehper') {
         Write-Info "Adding puerts_uehper dependency to package.json"
         if (-not $pkg.dependencies) { $pkg | Add-Member -NotePropertyName dependencies -NotePropertyValue @{} }
         $pkg.dependencies.'puerts_uehper' = "file:Plugins/Unreal.AIHper/puerts_uehper"
-        if (-not $DryRun) { Write-JsonFile $pkgPath $pkg }
+        Write-JsonFile $pkgPath $pkg
     }
 }
 
 # --- 2. seed tsconfig.json if missing ---
 $tsconfigPath = Join-Path $ProjectRoot "tsconfig.json"
 if (-not (Test-Path $tsconfigPath)) {
-    Write-Info "Creating tsconfig.json (minimal; bootstrap will refine paths)"
+    Write-Info "Creating tsconfig.json (bootstrap will refine paths)"
     $tsconfigSeed = @{
         compilerOptions = @{
             target = "esnext"
@@ -139,98 +135,61 @@ if (-not (Test-Path $tsconfigPath)) {
         include = @("TypeScript/**/*")
         exclude = @("Typing/**/*.d.ts", "TypeScript/puerts_uehper/IOToolkit/**/*")
     }
-    if (-not $DryRun) { Write-JsonFile $tsconfigPath $tsconfigSeed }
+    Write-JsonFile $tsconfigPath $tsconfigSeed
 }
 
 # --- 3. ensure TypeScript/ source root exists ---
 $tsRoot = Join-Path $ProjectRoot "TypeScript"
-if (-not (Test-Path $tsRoot) -and -not $DryRun) {
+if (-not (Test-Path $tsRoot)) {
     Write-Info "Creating TypeScript/ source root"
     New-Item -ItemType Directory -Path $tsRoot -Force | Out-Null
 }
 
 # --- 4. npm install ---
-Write-Info "npm install (in $ProjectRoot)"
-if (-not $DryRun) {
-    Push-Location $ProjectRoot
-    try {
-        & npm install --no-audit --no-fund
-        if ($LASTEXITCODE -ne 0) { Write-Err "npm install failed (exit $LASTEXITCODE)"; exit 1 }
-    } finally { Pop-Location }
-}
+Write-Info "npm install"
+Push-Location $ProjectRoot
+try {
+    & npm install --no-audit --no-fund
+    if ($LASTEXITCODE -ne 0) { Write-Err "npm install failed (exit $LASTEXITCODE)"; exit 1 }
+} finally { Pop-Location }
 
 # --- 5. puerts_uehper bootstrap ---
 Write-Info "npx puerts_uehper bootstrap"
-if (-not $DryRun) {
-    Push-Location $ProjectRoot
-    try {
-        & npx --no-install puerts_uehper bootstrap
-        $bsExit = $LASTEXITCODE
-        if ($bsExit -ne 0) {
-            Write-Warn "bootstrap exited $bsExit (expected if Puerts backend not yet compiled)"
-            Write-Warn "next steps:"
-            Write-Warn "  1. Compile C++ (build UEHper + Puerts modules)"
-            Write-Warn "  2. Launch UE editor, run Puerts.Gen (or npx puerts_uehper gen-typings)"
-            Write-Warn "  3. Re-run: npx puerts_uehper bootstrap"
-            Write-Warn "  4. npx puerts_uehper build"
-        }
-    } finally { Pop-Location }
-}
-
-# --- 6. optional: enable McpAutomationBridge in .uproject ---
-if ($WithMCP) {
-    Write-Info "Enabling McpAutomationBridge in .uproject"
-    $mcpBridge = Join-Path $FrameworkRoot "Unreal_mcp/plugins/McpAutomationBridge/McpAutomationBridge.uplugin"
-    if (-not (Test-Path $mcpBridge)) {
-        Write-Warn "McpAutomationBridge.uplugin not found at $mcpBridge. Did you init Unreal_mcp submodule?"
-    } else {
-        # junction McpAutomationBridge into repo root for UE to discover
-        $mcpLink = Join-Path $FrameworkRoot "McpAutomationBridge"
-        if (-not (Test-Path $mcpLink) -and -not $DryRun) {
-            Write-Info "  linking McpAutomationBridge -> $mcpLink"
-            cmd /c mklink /J "$mcpLink" "$((Split-Path $mcpBridge -Parent))"
-        }
-        # add to .uproject Plugins array
-        if (-not $DryRun) {
-            $upRaw = [System.IO.File]::ReadAllText($uproject.FullName, [System.Text.Encoding]::UTF8)
-            $up = $upRaw | ConvertFrom-Json
-            if (-not $up.Plugins) { $up | Add-Member -NotePropertyName Plugins -NotePropertyValue @() }
-            $exists = $up.Plugins | Where-Object { $_.Name -eq "McpAutomationBridge" }
-            if (-not $exists) {
-                $up.Plugins += @{ Name = "McpAutomationBridge"; Enabled = $true }
-                Write-JsonFile $uproject.FullName $up
-                Write-Info "  added McpAutomationBridge to $($uproject.Name)"
-            }
-        }
+Push-Location $ProjectRoot
+try {
+    & npx --no-install puerts_uehper bootstrap
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "bootstrap exited $LASTEXITCODE (expected if Puerts backend not yet compiled)"
+        Write-Warn "next steps:"
+        Write-Warn "  1. Compile C++ (build UEHper + Puerts modules)"
+        Write-Warn "  2. Launch UE editor, run Puerts.Gen (or npx puerts_uehper gen-typings)"
+        Write-Warn "  3. Re-run: npx puerts_uehper bootstrap"
+        Write-Warn "  4. npx puerts_uehper build"
     }
-}
+} finally { Pop-Location }
 
-# --- 7. SVN detection ---
+# --- 6. SVN detection ---
 if (Test-Path (Join-Path $ProjectRoot ".svn")) {
-    Write-Warn "SVN working copy detected. The .git under Plugins/Unreal.AIHper/ should be svn:ignored:"
+    Write-Warn "SVN working copy detected. svn:ignore the .git under Plugins/Unreal.AIHper/:"
     Write-Warn "  svn propset svn:ignore '.git' Plugins/Unreal.AIHper"
-    Write-Warn "  (or ignore the whole Plugins/Unreal.AIHper if you don't track framework version via SVN)"
 }
 
-# --- 8. write version record ---
+# --- 7. write version record ---
 $verIni = Join-Path $FrameworkRoot "UEHper/Config/UEHperFrameworkVersion.ini"
 $gitVer = "unknown"
 try { $gitVer = (git -C $FrameworkRoot describe --tags --always 2>$null) } catch {}
 if (-not $gitVer) { $gitVer = "unknown" }
-Write-Info "Writing version record: $verIni (version=$gitVer)"
-if (-not $DryRun) {
-    $verContent = "Version=$gitVer`r`nInstalledAt=$(Get-Date -Format o)`r`nSource=git clone"
-    Write-TextFile $verIni $verContent
-}
+Write-Info "Version: $gitVer"
+$verContent = "Version=$gitVer`r`nInstalledAt=$(Get-Date -Format o)`r`nSource=git clone"
+Write-TextFile $verIni $verContent
 
 # --- done ---
 Write-Info ""
 Write-Info "Initialization complete."
-Write-Info "Framework git repo: $FrameworkRoot"
-Write-Info "To update framework: cd $FrameworkRoot; git pull --recurse-submodules"
-Write-Info "To push framework changes: cd $FrameworkRoot; git add -A; git commit -m '...'; git push"
+Write-Info "  Update framework: cd $FrameworkRoot; git pull --recurse-submodules"
+Write-Info "  Push changes:     cd $FrameworkRoot; git add -A; git commit -m '...'; git push"
 Write-Info ""
-Write-Info "Next steps:"
+Write-Info "Next:"
 Write-Info "  cd $ProjectRoot"
 Write-Info "  npx puerts_uehper doctor    # validate layout"
 Write-Info "  (compile C++ if backend missing)"
