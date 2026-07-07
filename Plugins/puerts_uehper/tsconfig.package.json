@@ -1,0 +1,43 @@
+{
+    "compilerOptions": {
+        "target": "esnext",
+        "module": "commonjs",
+        "experimentalDecorators": true,
+        "useDefineForClassFields": false,
+        "jsx": "react",
+        "sourceMap": true,
+        "declaration": true,
+        "declarationMap": true,
+        "rootDir": ".",
+        "outDir": "dist",
+        "baseUrl": ".",
+        "paths": {
+            "puerts_uehper": [
+                "index"
+            ],
+            "puerts_uehper/*": [
+                "*"
+            ]
+        },
+        "typeRoots": [
+            "../../Typing",
+            "../../node_modules/@types",
+            "./node_modules/@types"
+        ],
+        "skipLibCheck": true
+    },
+    "include": [
+        "index.ts",
+        "UEHelpers.ts",
+        "Core/**/*.ts",
+        "Framework/**/*.ts",
+        "Multiplayer/**/*.ts",
+        "Services/**/*.ts"
+    ],
+    "exclude": [
+        "Cli/**/*",
+        "IOToolkit/**/*",
+        "dist/**/*",
+        "Services/ActorStateSyncService.ts"
+    ]
+}

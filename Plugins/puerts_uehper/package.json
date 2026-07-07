@@ -1,0 +1,102 @@
+{
+    "name": "puerts_uehper",
+    "version": "0.1.0",
+    "description": "TypeScript-side installer and framework bootstrap for UEHper + Puerts projects",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "type": "commonjs",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        },
+        "./Framework/bootstrap": {
+            "types": "./dist/Framework/bootstrap.d.ts",
+            "default": "./dist/Framework/bootstrap.js"
+        },
+        "./Framework/*": {
+            "types": "./dist/Framework/*.d.ts",
+            "default": "./dist/Framework/*.js"
+        },
+        "./Core/*": {
+            "types": "./dist/Core/*.d.ts",
+            "default": "./dist/Core/*.js"
+        },
+        "./Multiplayer/*": {
+            "types": "./dist/Multiplayer/*.d.ts",
+            "default": "./dist/Multiplayer/*.js"
+        },
+        "./Services/*": {
+            "types": "./dist/Services/*.d.ts",
+            "default": "./dist/Services/*.js"
+        },
+        "./UEHelpers": {
+            "types": "./dist/UEHelpers.d.ts",
+            "default": "./dist/UEHelpers.js"
+        },
+        "./Cli/args": "./Cli/args.js",
+        "./Cli/bootstrap": "./Cli/bootstrap.js",
+        "./Cli/commands": "./Cli/commands.js",
+        "./Cli/context": "./Cli/context.js",
+        "./Cli/cook": "./Cli/cook.js",
+        "./Cli/doctor": "./Cli/doctor.js",
+        "./Cli/editorAutomation": "./Cli/editorAutomation.js",
+        "./Cli/help": "./Cli/help.js",
+        "./Cli/main": "./Cli/main.js",
+        "./Cli/manifest": "./Cli/manifest.js",
+        "./Cli/processRunner": "./Cli/processRunner.js",
+        "./Cli/runtimeLog": "./Cli/runtimeLog.js",
+        "./Cli/scaffold": "./Cli/scaffold.js",
+        "./Cli/shared": "./Cli/shared.js",
+        "./Cli/smoke": "./Cli/smoke.js",
+        "./Cli/unrealPaths": "./Cli/unrealPaths.js",
+        "./Cli/watch": "./Cli/watch.js",
+        "./package.json": "./package.json"
+    },
+    "bin": {
+        "puerts-uehper": "uehper.js",
+        "puerts_uehper": "uehper.js"
+    },
+    "scripts": {
+        "build:package": "node ./Cli/package-build.js",
+        "pretest:cli": "npm run build:package",
+        "test:cli": "node ./Cli/__tests__/args.test.js && node ./Cli/__tests__/unrealPaths.test.js && node ./Cli/__tests__/processRunner.test.js && node ./Cli/__tests__/manifest-scaffold-fixtures.test.js && node ./Cli/__tests__/commands.test.js && node ./Cli/__tests__/shared.test.js && node ./Cli/__tests__/cli-fixtures.test.js && node ./Cli/__tests__/serviceGraph.test.js && node ./Cli/__tests__/scaffold-gameapp.test.js && node ./Cli/__tests__/disposeAll.test.js && node ./Cli/__tests__/initializeAll.test.js && node ./Cli/__tests__/rootServicesDispose.test.js && node ./Cli/__tests__/createWorldContextFailure.test.js && node ./Cli/__tests__/runtimeLog.test.js && node ./Cli/__tests__/package-metadata.test.js && node ./Cli/__tests__/runtime-source.test.js && node ./Cli/__tests__/context-layout.test.js && node ./Cli/__tests__/bootstrap-root-appdir.test.js",
+        "prepack": "node ./Cli/package-prepack.js",
+        "postpack": "node ./Cli/package-postpack.js",
+        "pack:dry-run": "npm pack --dry-run"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/MrBaoquan/puerts_uehper.git"
+    },
+    "files": [
+        "Cli/args.js",
+        "Cli/bootstrap.js",
+        "Cli/commands.js",
+        "Cli/context.js",
+        "Cli/cook.js",
+        "Cli/doctor.js",
+        "Cli/editorAutomation.js",
+        "Cli/help.js",
+        "Cli/main.js",
+        "Cli/manifest.js",
+        "Cli/processRunner.js",
+        "Cli/runtimeLog.js",
+        "Cli/scaffold.js",
+        "Cli/shared.js",
+        "Cli/smoke.js",
+        "Cli/unrealPaths.js",
+        "Cli/watch.js",
+        "dist",
+        "enable_uehper.js",
+        "uehper.js",
+        "README.md"
+    ],
+    "engines": {
+        "node": ">=18"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
+    "license": "ISC"
+}
