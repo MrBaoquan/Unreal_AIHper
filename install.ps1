@@ -50,7 +50,7 @@ function Invoke-Fetch {
     }
     $branch = if ($Version -eq "latest") { "main" } else { $Version }
     Write-StageInfo "  git clone --recurse-submodules --branch $branch -> $TempDir"
-    if ($DryRun) { $script:SourceRoot = "<dry-run>"; return }
+    if ($DryRun) { $script:SourceRoot = "dry-run"; return }
     & git clone --recurse-submodules --branch $branch $RepoUrl $TempDir
     if ($LASTEXITCODE -ne 0) { throw "git clone failed (exit $LASTEXITCODE)" }
     $script:SourceRoot = $TempDir
@@ -76,7 +76,7 @@ function Invoke-Integrate {
     foreach ($sub in $subDirs) {
         $src = Get-SubDirSourcePath $sub
         $dst = Join-Path $PluginsRoot $sub
-        if (-not (Test-Path $src)) { Write-StageWarn "  source missing, skip: $src"; continue }
+        if (-not $DryRun -and -not (Test-Path $src)) { Write-StageWarn "  source missing, skip: $src"; continue }
 
         if ($Force -and (Test-Path $dst)) {
             Write-StageInfo "  -Force: remove old $dst"
