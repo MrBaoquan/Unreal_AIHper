@@ -30,10 +30,31 @@ $ProgressPreference = "SilentlyContinue"
 # Resolve project root to absolute path
 $ProjectRoot = (Resolve-Path $ProjectRoot).Path
 $FrameworkRoot = $PSScriptRoot  # this script lives in the cloned repo root
+$Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
 function Write-Info($msg) { Write-Host "[Unreal_AIHper] $msg" -ForegroundColor Cyan }
 function Write-Warn($msg) { Write-Host "[Unreal_AIHper] WARN: $msg" -ForegroundColor Yellow }
 function Write-Err($msg)  { Write-Host "[Unreal_AIHper] ERROR: $msg" -ForegroundColor Red }
+
+function Write-JsonFile([string]$path, $obj) {
+    $json = $obj | ConvertTo-Json -Depth 10
+    [System.IO.File]::WriteAllText($path, $json, $Utf8NoBom)
+}
+
+function Write-TextFile([string]$path, [string]$text) {
+    [System.IO.File]::WriteAllText($path, $text, $Utf8NoBom)
+}
+
+function Remove-Bom([string]$path) {
+    if (-not (Test-Path $path)) { return }
+    $bytes = [System.IO.File]::ReadAllBytes($path)
+    if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
+        Write-Info "Removing UTF-8 BOM from $path"
+        $stripped = New-Object byte[] ($bytes.Length - 3)
+        [Array]::Copy($bytes, 3, $stripped, 0, $stripped.Length)
+        [System.IO.File]::WriteAllBytes($path, $stripped)
+    }
+}
 
 Write-Info "ProjectRoot: $ProjectRoot"
 Write-Info "FrameworkRoot: $FrameworkRoot"
@@ -52,6 +73,9 @@ if (-not $uproject) {
     Write-Err "No .uproject under $ProjectRoot. Is this a UE project root?"
     exit 1
 }
+
+# Strip BOM from .uproject if present (Node JSON.parse fails on BOM; bootstrap reads it)
+if (-not $DryRun) { Remove-Bom $uproject.FullName }
 
 # --- 1. seed package.json in ProjectRoot if missing ---
 $pkgPath = Join-Path $ProjectRoot "package.json"
@@ -79,7 +103,7 @@ if (-not (Test-Path $pkgPath)) {
             frameworkSource = "package"
         }
     }
-    if (-not $DryRun) { $pkgSeed | ConvertTo-Json -Depth 10 | Set-Content $pkgPath -Encoding UTF8 }
+    if (-not $DryRun) { Write-JsonFile $pkgPath $pkgSeed }
 } else {
     # ensure puerts_uehper dep exists
     $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
@@ -87,7 +111,7 @@ if (-not (Test-Path $pkgPath)) {
         Write-Info "Adding puerts_uehper dependency to package.json"
         if (-not $pkg.dependencies) { $pkg | Add-Member -NotePropertyName dependencies -NotePropertyValue @{} }
         $pkg.dependencies.'puerts_uehper' = "file:Plugins/Unreal.AIHper/puerts_uehper"
-        if (-not $DryRun) { $pkg | ConvertTo-Json -Depth 10 | Set-Content $pkgPath -Encoding UTF8 }
+        if (-not $DryRun) { Write-JsonFile $pkgPath $pkg }
     }
 }
 
@@ -115,7 +139,7 @@ if (-not (Test-Path $tsconfigPath)) {
         include = @("TypeScript/**/*")
         exclude = @("Typing/**/*.d.ts", "TypeScript/puerts_uehper/IOToolkit/**/*")
     }
-    if (-not $DryRun) { $tsconfigSeed | ConvertTo-Json -Depth 10 | Set-Content $tsconfigPath -Encoding UTF8 }
+    if (-not $DryRun) { Write-JsonFile $tsconfigPath $tsconfigSeed }
 }
 
 # --- 3. ensure TypeScript/ source root exists ---
@@ -168,12 +192,13 @@ if ($WithMCP) {
         }
         # add to .uproject Plugins array
         if (-not $DryRun) {
-            $up = Get-Content $uproject.FullName -Raw | ConvertFrom-Json
+            $upRaw = [System.IO.File]::ReadAllText($uproject.FullName, [System.Text.Encoding]::UTF8)
+            $up = $upRaw | ConvertFrom-Json
             if (-not $up.Plugins) { $up | Add-Member -NotePropertyName Plugins -NotePropertyValue @() }
             $exists = $up.Plugins | Where-Object { $_.Name -eq "McpAutomationBridge" }
             if (-not $exists) {
                 $up.Plugins += @{ Name = "McpAutomationBridge"; Enabled = $true }
-                $up | ConvertTo-Json -Depth 10 | Set-Content $uproject.FullName -Encoding UTF8
+                Write-JsonFile $uproject.FullName $up
                 Write-Info "  added McpAutomationBridge to $($uproject.Name)"
             }
         }
@@ -195,7 +220,7 @@ if (-not $gitVer) { $gitVer = "unknown" }
 Write-Info "Writing version record: $verIni (version=$gitVer)"
 if (-not $DryRun) {
     $verContent = "Version=$gitVer`r`nInstalledAt=$(Get-Date -Format o)`r`nSource=git clone"
-    Set-Content -Path $verIni -Value $verContent -Encoding UTF8
+    Write-TextFile $verIni $verContent
 }
 
 # --- done ---
