@@ -21,7 +21,7 @@ param(
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$RepoOwner = "MrBaoquan"        # TODO: confirm before push
+$RepoOwner = "MrBaoquan"
 $RepoName = "Unreal_AIHper"
 $RepoUrl = "https://github.com/$RepoOwner/$RepoName.git"
 $InstallerRawUrl = "https://raw.githubusercontent.com/$RepoOwner/$RepoName/main/install.ps1"
