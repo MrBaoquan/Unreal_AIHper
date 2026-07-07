@@ -126,8 +126,32 @@ function Invoke-Configure {
         Push-Location $ProjectRoot
         if ($DryRun) { Write-StageInfo "  [dry-run] npm install + npx puerts_uehper bootstrap"; return }
 
-        # Ensure puerts_uehper dep in package.json
-        if (Test-Path $pkgPath) {
+        # Ensure package.json exists with puerts_uehper dep
+        if (-not (Test-Path $pkgPath)) {
+            Write-StageInfo "  creating package.json (not found in project root)"
+            $seed = @{
+                name = (Split-Path $ProjectRoot -Leaf)
+                version = "0.0.0"
+                private = $true
+                dependencies = @{
+                    puerts_uehper = "file:Plugins/Unreal.AIHper/puerts_uehper"
+                }
+                devDependencies = @{
+                    "@types/node" = "^20.5.9"
+                }
+                scripts = @{
+                    build = "puerts_uehper build"
+                    watch = "puerts_uehper watch"
+                }
+                uehper = @{
+                    sourceRoot = "TypeScript"
+                    appDir = "."
+                    entryModule = "GameApp"
+                    frameworkSource = "package"
+                }
+            }
+            $seed | ConvertTo-Json -Depth 10 | Set-Content $pkgPath -Encoding UTF8
+        } else {
             $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
             if (-not $pkg.dependencies -or -not $pkg.dependencies.'puerts_uehper') {
                 Write-StageInfo "  adding puerts_uehper dep to package.json"
@@ -141,9 +165,45 @@ function Invoke-Configure {
         & npm install --no-audit --no-fund
         if ($LASTEXITCODE -ne 0) { throw "npm install failed (exit $LASTEXITCODE)" }
 
+        # Write minimal tsconfig.json if missing (bootstrap will rewrite paths; this is fallback if bootstrap defers)
+        if (-not (Test-Path $tsconfigPath)) {
+            Write-StageInfo "  creating tsconfig.json (minimal, bootstrap will refine paths)"
+            $tsconfigSeed = @{
+                compilerOptions = @{
+                    target = "esnext"
+                    module = "commonjs"
+                    experimentalDecorators = $true
+                    useDefineForClassFields = $false
+                    jsx = "react"
+                    sourceMap = $true
+                    skipLibCheck = $true
+                    baseUrl = "TypeScript"
+                    paths = @{
+                        "puerts_uehper" = @("../node_modules/puerts_uehper/dist/index")
+                        "puerts_uehper/*" = @("../node_modules/puerts_uehper/dist/*")
+                    }
+                    typeRoots = @("Typing", "./node_modules/@types")
+                    outDir = "Content/JavaScript/Game"
+                }
+                include = @("TypeScript/**/*")
+                exclude = @("Typing/**/*.d.ts", "TypeScript/puerts_uehper/IOToolkit/**/*")
+            }
+            $tsconfigSeed | ConvertTo-Json -Depth 10 | Set-Content $tsconfigPath -Encoding UTF8
+        }
+
+        # Ensure TypeScript/ source root exists so bootstrap has somewhere to scaffold
+        $tsRoot = Join-Path $ProjectRoot "TypeScript"
+        if (-not (Test-Path $tsRoot)) { New-Item -ItemType Directory -Path $tsRoot -Force | Out-Null }
+
         Write-StageInfo "  npx puerts_uehper bootstrap"
         & npx --no-install puerts_uehper bootstrap
-        if ($LASTEXITCODE -ne 0) { throw "bootstrap failed (exit $LASTEXITCODE)" }
+        $bsExit = $LASTEXITCODE
+        if ($bsExit -ne 0) {
+            Write-StageWarn "  bootstrap exited $bsExit (expected on first install if Puerts backend not yet compiled)"
+            Write-StageWarn "  next steps: compile C++ (./Scripts/build-editor.ps1) then npx puerts_uehper gen-typings, then npx puerts_uehper build"
+            Write-StageInfo "  L3 partial success (npm install done, bootstrap deferred). Install considered OK; run doctor for full check."
+            return
+        }
     }
     catch {
         Write-StageError "L3 failed: $($_.Exception.Message)"
