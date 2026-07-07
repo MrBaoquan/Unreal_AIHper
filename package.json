@@ -1,15 +1,12 @@
 {
     "name": "unreal-aihper",
     "version": "1.0.0",
-    "description": "Unreal_AIHper framework monorepo: UEHper (C++ Runtime Host) + puerts_uehper (TS app container) + Puerts + optional McpAutomationBridge",
+    "description": "Unreal_AIHper framework: UEHper (C++ Runtime Host) + puerts_uehper (TS app container) + Puerts + optional McpAutomationBridge. Clone into Plugins/Unreal.AIHper/ of any UE 5.5 project.",
     "private": true,
-    "workspaces": [
-        "Plugins/puerts_uehper"
-    ],
     "scripts": {
-        "build:package": "npm -C Plugins/puerts_uehper run build:package",
-        "doctor": "node Plugins/puerts_uehper/uehper.js doctor",
-        "help": "node Plugins/puerts_uehper/uehper.js help"
+        "build:package": "npm --prefix puerts_uehper run build:package",
+        "doctor": "node puerts_uehper/uehper.js doctor",
+        "help": "node puerts_uehper/uehper.js help"
     },
     "engines": {
         "node": ">=18"

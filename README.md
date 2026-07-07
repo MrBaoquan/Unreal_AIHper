@@ -1,60 +1,75 @@
 # Unreal_AIHper
 
-Unreal_AIHper 是把 **UEHper**（C++ Runtime Host）+ **puerts_uehper**（TypeScript 应用容器）+ **Puerts**（第三方脚本运行时）+ 可选 **McpAutomationBridge**（编辑器自动化）整合到一起的 UE 插件框架，让你可以在任意 UE 5.5 项目里用 TypeScript 写业务逻辑，由 C++ 负责 Actor/碰撞/动画/网络复制。
+Unreal_AIHper 是把 **UEHper**（C++ Runtime Host）+ **puerts_uehper**（TypeScript 应用容器）+ **Puerts**（第三方脚本运行时）+ 可选 **McpAutomationBridge**（编辑器自动化）整合到一起的 UE 插件框架。
 
-## 五层架构
-
-```
-L0  UEHper C++              框架底座（不随业务变化）
-L1  业务 C++                 Actor / 碰撞 / 动画 / 导航 / 投射物 / 高频 Tick / 网络复制
-L2  puerts_uehper TS         通用 TS 框架（可跨项目复用）
-L3  业务 TypeScript           项目业务层
-```
+**这个仓库本身就是 UE 插件目录**——直接 `git clone` 到 UE 项目的 `Plugins/Unreal.AIHper/` 下即可，无需 copy、无需 junction。
 
 ## 仓库布局
 
 ```
-Unreal_AIHper/
-├── install.ps1                  # 一键安装到任意 UE 5.5 项目（网络模式）
-├── package.json                 # 顶层 workspace 根
+Unreal_AIHper/                  # ← git clone 到 Plugins/Unreal.AIHper/
+├── install.ps1                  # 一站式初始化（npm install + bootstrap）
+├── package.json                 # 顶层（仅开发用，消费方用自己的 package.json）
 ├── .uehper-version              # 版本 + submodule 锁定
 ├── .gitmodules                  # puerts / Unreal_mcp submodule
-├── Plugins/
-│   ├── UEHper/                  # C++ 插件（4 模块: UEHper/UEHperEditor/UEHperXR/UEHperXRPico）
-│   └── puerts_uehper/           # TS 框架包（dist/ + Cli/ + Framework/ + Services/）
-├── ThirdParty/
-│   ├── puerts/                  # submodule: Tencent/puerts@a50fbae
-│   └── Unreal_mcp/              # submodule: ChiR24/Unreal_mcp@v0.5.30
-└── docs/                        # 框架文档
+├── UEHper/                      # C++ 插件（4 模块: UEHper/UEHperEditor/UEHperXR/UEHperXRPico）
+├── puerts_uehper/               # TS 框架包（dist/ + Cli/ + Framework/ + Services/）
+├── puerts/                      # submodule: Tencent/puerts@a50fbae
+├── Unreal_mcp/                  # submodule: ChiR24/Unreal_mcp@v0.5.30
+└── McpAutomationBridge/         # （-WithMCP 时 junction 到 Unreal_mcp/plugins/McpAutomationBridge/）
 ```
 
-## 快速安装（网络一行模式）
-
-在**目标 UE 工程根**执行：
+## 安装（git clone 模式，保留版本控制和回流能力）
 
 ```powershell
-& ([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing 'https://raw.githubusercontent.com/<org>/Unreal_AIHper/main/install.ps1').Content)) -ProjectRoot $PWD -Version latest
+# 1. 在 UE 项目根，clone 框架仓到 Plugins/Unreal.AIHper/
+cd F:/UEProjects/YourProject
+git clone --recurse-submodules https://github.com/MrBaoquan/Unreal_AIHper.git Plugins/Unreal.AIHper
+
+# 2. 跑一站式初始化
+./Plugins/Unreal.AIHper/install.ps1 -ProjectRoot .
+
+# 或带 MCP 编辑器自动化
+./Plugins/Unreal.AIHper/install.ps1 -ProjectRoot . -WithMCP
 ```
 
-或先下载再执行：
+`install.ps1` 完成：
+1. 创建 `package.json`（若不存在，含 `puerts_uehper` file: 依赖）
+2. 创建 `tsconfig.json`（若不存在，paths 指向 `node_modules/puerts_uehper/dist`）
+3. 创建 `TypeScript/` 源码根目录
+4. `npm install`
+5. `npx puerts_uehper bootstrap`（写 tsconfig.paths / GameApp.ts / Manifests；backend 未编译时优雅降级）
+6. `-WithMCP` 时 junction McpAutomationBridge + 写 .uproject Plugins 数组
+7. 写 `UEHperFrameworkVersion.ini` 版本记录
+8. SVN 工作副本检测 + 提示
+
+## 持续沉淀（git 原生能力，无需额外工具）
 
 ```powershell
-Invoke-WebRequest 'https://raw.githubusercontent.com/<org>/Unreal_AIHper/main/install.ps1' -OutFile install-aihper.ps1
-./install-aihper.ps1 -ProjectRoot F:/UEProjects/YourProject -Version v1.0.0
-```
+cd Plugins/Unreal.AIHper
 
-安装器三层架构：L1 Fetch（git clone）→ L2 Integrate（copy 4 子目录到 Plugins/Unreal.AIHper/）→ L3 Configure（npm install + puerts_uehper bootstrap）。详见 [docs/uehper-monorepo-plan.md](docs/uehper-monorepo-plan.md) §5。
+# 拉最新框架
+git pull --recurse-submodules
+
+# 改了 UEHper C++ 或 puerts_uehper TS 后回流
+git add -A
+git commit -m "feat: improve xxx"
+git push
+
+# 多项目沉淀到同一仓，自然合并
+```
 
 ## 安装后验证
 
 ```powershell
+cd <UEProjectRoot>
 npx puerts_uehper doctor
 ```
 
 首次安装通常报 `backendReady=false` + `typingsReady=false`，需先：
-1. `./Scripts/build-editor.ps1` 编译 C++（含 Puerts 后端）
+1. 编译 C++（UEHper + Puerts 模块）
 2. 启动 UE 编辑器 → `npx puerts_uehper gen-typings`
-3. `npx puerts_uehper build` 编译 TS
+3. `npx puerts_uehper build`
 
 ## 日常命令
 
@@ -67,30 +82,26 @@ npx puerts_uehper doctor
 | Doctor | `npx puerts_uehper doctor` |
 | 脚手架 | `npx puerts_uehper make module MyFlow` |
 
-## 升级
+## 升级框架
 
 ```powershell
-./install-aihper.ps1 -ProjectRoot <YourProject> -Version v1.2.3 -Force
+cd Plugins/Unreal.AIHper
+git pull --recurse-submodules
+# 重跑初始化同步配置（可选，仅当框架引入新配置项时需要）
+./install.ps1 -ProjectRoot ../..
 ```
 
-## 卸载
+## SVN 项目兼容
 
+SVN 工作副本下，框架仓的 `.git` 需 svn:ignore：
 ```powershell
-Remove-Item -Recurse -Force Plugins/Unreal.AIHper/{UEHper,puerts_uehper,puerts,McpAutomationBridge}
+svn propset svn:ignore ".git" Plugins/Unreal.AIHper
 ```
-
-## 文档
-
-| 主题 | 文档 |
-|---|---|
-| 整合方案 | [docs/uehper-monorepo-plan.md](docs/uehper-monorepo-plan.md) |
-| 快速使用 | [docs/uehper-quick-start.md](docs/uehper-quick-start.md) |
-| 框架架构 | [docs/puerts_uehper-框架.md](docs/puerts_uehper-框架.md) |
 
 ## 第三方
 
-- [Puerts](https://github.com/Tencent/puerts) — MIT，锁定 commit `a50fbae`
-- [Unreal_mcp](https://github.com/ChiR24/Unreal_mcp) — MIT，锁定 tag `v0.5.30`
+- [Puerts](https://github.com/Tencent/puerts) — MIT，submodule @ a50fbae
+- [Unreal_mcp](https://github.com/ChiR24/Unreal_mcp) — MIT，submodule @ v0.5.30
 
 ## License
 

@@ -28,3 +28,9 @@ Thumbs.db
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/extensions.json
+
+# McpAutomationBridge junction (created by install.ps1 -WithMCP)
+McpAutomationBridge/
+
+# Version record (written by install.ps1, not source)
+UEHper/Config/UEHperFrameworkVersion.ini

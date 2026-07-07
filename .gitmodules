@@ -1,6 +1,6 @@
-[submodule "ThirdParty/puerts"]
-	path = ThirdParty/puerts
-	url = https://github.com/Tencent/puerts.git
-[submodule "ThirdParty/Unreal_mcp"]
-	path = ThirdParty/Unreal_mcp
+[submodule "Unreal_mcp"]
+	path = Unreal_mcp
 	url = https://github.com/ChiR24/Unreal_mcp.git
+[submodule "puerts"]
+	path = puerts
+	url = https://github.com/Tencent/puerts.git
