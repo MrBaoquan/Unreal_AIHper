@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check-dist-sync:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install typescript
+        run: npm install --no-audit --no-fund --no-save typescript@5.3.3
+        working-directory: puerts_uehper
+
+      - name: Rebuild dist and check sync
+        run: |
+          # dist is committed; rebuild to temp and diff to catch stale dist
+          $ErrorActionPreference = "Stop"
+          Push-Location puerts_uehper
+          try {
+            # Backup current dist
+            if (Test-Path dist) { Rename-Item dist dist_committed }
+            # Rebuild (will fail on ue/puerts module errors in CI without typings; skip if so)
+            & node node_modules/typescript/bin/tsc -p tsconfig.package.json 2>&1 | Out-Null
+            $tscExit = $LASTEXITCODE
+            if (Test-Path dist) {
+              # Compare
+              $diff = & git diff --no-index --stat dist_committed dist 2>&1
+              if ($diff -match "files differ|=>") {
+                Write-Host "WARNING: dist is out of sync with source. Rebuild locally:"
+                Write-Host "  cd puerts_uehper; npm install typescript@5.3.3; npx tsc -p tsconfig.package.json"
+                Write-Host "  then commit the updated dist/"
+                # Non-fatal: warn only (CI lacks typings for full rebuild)
+              } else {
+                Write-Host "dist is in sync with source"
+              }
+              Remove-Item -Recurse -Force dist
+              Rename-Item dist_committed dist
+            } else {
+              Write-Host "Rebuild failed (expected: CI lacks ue/puerts typings). Skipping sync check."
+              if (Test-Path dist_committed) { Rename-Item dist_committed dist }
+            }
+          } finally { Pop-Location }

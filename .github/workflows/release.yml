@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Verify dist is committed
+        run: |
+          if (-not (Test-Path puerts_uehper/dist/index.js)) { throw "dist/index.js missing in repo; run build:package locally and commit" }
+          if (-not (Test-Path puerts_uehper/dist/Framework/bootstrap.js)) { throw "dist/Framework/bootstrap.js missing" }
+          Write-Host "dist OK (pre-built, committed to repo)"
+
+      - name: Publish puerts_uehper to npm
+        run: npm publish
+        working-directory: puerts_uehper
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
